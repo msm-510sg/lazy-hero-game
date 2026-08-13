@@ -1,0 +1,1123 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>走らされた勇者</title>
+  <style>
+    * {
+      box-sizing: border-box;
+      touch-action: manipulation;
+      user-select: none;
+    }
+    html, body {
+      width: 100%;
+      height: 100%;
+      margin: 0;
+      padding: 0;
+      background: #000;
+      color: #fff;
+      font-family: sans-serif;
+      overflow: hidden;
+    }
+    
+    /* 画面全体レイアウト */
+    .main-layout {
+      width: 100vw;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: flex-start;
+      padding-top: 5px;
+    }
+    
+    /* ゲーム画面 */
+    .game-container {
+      position: relative;
+      width: min(100vw, calc((100vh - 180px) * (360 / 400)));
+      height: calc(min(100vw, calc((100vh - 180px) * (360 / 400))) * (400 / 360));
+    }
+    
+    #gameCanvas {
+      width: 100%;
+      height: 100%;
+      display: block;
+      background: #70c5ce;
+    }
+    
+    /* ファミコン風コントローラーパネル */
+    .controller-panel {
+      width: 100vw;
+      max-width: 440px;
+      height: 165px;
+      background: #8b0000; /* ファミコン赤 */
+      margin-top: 5px;
+      border-top: 4px solid #333;
+      border-radius: 12px 12px 0 0;
+      display: flex;
+      align-items: center;
+      justify-content: space-around;
+      padding: 10px 15px;
+      position: relative;
+      box-shadow: inset 0 2px 4px rgba(255,255,255,0.2);
+    }
+
+    /* 金のライン飾り */
+    .controller-panel::before {
+      content: "";
+      position: absolute;
+      top: 8px;
+      left: 15px;
+      right: 15px;
+      height: 2px;
+      background: #d4af37;
+    }
+
+    /* アナログ感のある十字キー */
+    .dpad-container {
+      width: 110px;
+      height: 110px;
+      position: relative;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .dpad-cross {
+      width: 100px;
+      height: 100px;
+      position: relative;
+    }
+    .dpad-h {
+      position: absolute;
+      top: 32px;
+      left: 0;
+      width: 100px;
+      height: 36px;
+      background: #222;
+      border-radius: 6px;
+      box-shadow: 0 3px #111;
+    }
+    .dpad-v {
+      position: absolute;
+      left: 32px;
+      top: 0;
+      width: 36px;
+      height: 100px;
+      background: #222;
+      border-radius: 6px;
+      box-shadow: 0 3px #111;
+    }
+    .dpad-center {
+      position: absolute;
+      left: 36px;
+      top: 36px;
+      width: 28px;
+      height: 28px;
+      background: #1a1a1a;
+      border-radius: 50%;
+    }
+
+    /* 右側 4ボタン配置 */
+    .buttons-container {
+      width: 130px;
+      height: 130px;
+      position: relative;
+    }
+
+    .btn-4way {
+      position: absolute;
+      width: 52px;
+      height: 52px;
+      border-radius: 50%;
+      border: 2px solid #5d0000;
+      font-weight: bold;
+      font-size: 11px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      box-shadow: 0 3px rgba(0,0,0,0.5);
+    }
+    .btn-4way:active {
+      transform: translateY(2px);
+      box-shadow: 0 1px rgba(0,0,0,0.5);
+    }
+
+    /* 各ボタンの配置とカラー */
+    #btnY { top: 0px; left: 39px; background: #4caf50; color: #fff; } /* Yボタン：グリーン */
+    #btnX { top: 39px; left: 0px; background: #2196f3; color: #fff; } /* Xボタン：ブルー */
+    #attackBtn { top: 39px; right: 0px; background: #e91e63; color: #fff; } /* Aボタン：ピンク */
+    #jumpBtn { bottom: 0px; left: 39px; background: #ff9800; color: #fff; } /* Bボタン：オレンジ */
+  </style>
+</head>
+<body>
+  <div class="main-layout">
+    <div class="game-container">
+      <canvas id="gameCanvas" width="360" height="400"></canvas>
+    </div>
+    
+    <!-- ファミコン風コントローラー -->
+    <div class="controller-panel" id="controlPanel">
+      <!-- 十字キー -->
+      <div class="dpad-container">
+        <div class="dpad-cross">
+          <div class="dpad-h"></div>
+          <div class="dpad-v"></div>
+          <div class="dpad-center"></div>
+        </div>
+      </div>
+      
+      <!-- 4つボタン -->
+      <div class="buttons-container">
+        <div class="btn-4way" id="btnY">Y</div>
+        <div class="btn-4way" id="btnX">X</div>
+        <div class="btn-4way" id="attackBtn">A<br>⚔</div>
+        <div class="btn-4way" id="jumpBtn">B<br>▲</div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+    const controlPanel = document.getElementById('controlPanel');
+
+    let gameState = 'TITLE';
+    let audioStarted = false;
+
+    // --- 各種画像設定 ---
+    const titleImg = new Image();
+    titleImg.src = 'Image/Title.png';
+
+    const heroImg = new Image();
+    heroImg.src = 'Image/dotpict_20260807_174506.png';
+
+    const heroRightImg = new Image();
+    heroRightImg.src = 'Image/right-step.png';
+
+    const heroLeftImg = new Image();
+    heroLeftImg.src = 'Image/left-step.png';
+
+    const heroAttackImg = new Image();
+    heroAttackImg.src = 'Image/dotpict_20260807_205248.png';
+
+    const heroJumpImg = new Image();
+    heroJumpImg.src = 'Image/dotpict_20260812_115647.png';
+
+    const heroSleepImg = new Image();
+    heroSleepImg.src = 'Image/Sleep.png';
+
+    const kingImg = new Image();
+    kingImg.src = 'Image/dotpict_20260807_221910.png';
+
+    const enemyImg = new Image();
+    enemyImg.src = 'Image/enemy.png';
+
+    const bgImg = new Image();
+    bgImg.src = 'Image/1786107586804.png';
+    let bgX = 0;
+
+    const castleBgImg = new Image();
+    castleBgImg.src = 'Image/1786110061349.png';
+
+    let hitEffects = [];
+    let dustParticles = [];
+    let titleAnimTimer = 0;
+    let sleepFloatTimer = 0;
+
+    // --- プロローグ演出用 ---
+    const prologueLines = [
+      "遠いどっかの国のどっかの話。",
+      "突如現れた大魔王に世界中が震え上がり、",
+      "平和だった日々は遥か彼方へ……。",
+      "そんな絶望の時代が過ぎ、",
+      "ついに一つの王国が立ち上がった。",
+      "…なんで今なの。"
+    ];
+    let prologueIndex = 0;
+    let prologueAlpha = 0;
+
+    // --- 会話シーン演出用 ---
+    let storyIndex = 0;
+    const storyLines = [
+      { speaker: '王様', text: 'というわけで、勇者よ。\n世界を救うため、今すぐ魔王城に走るのだ' },
+      { speaker: '勇者', text: 'やっぱりそうなるのね…。\nというか世界を救うとか無理なんですけど！' },
+      { speaker: '王様', text: 'ぐだぐだ言うな！とにかく走れ！' },
+      { speaker: '勇者', text: '走るのも無理！' },
+      { speaker: '王様', text: 'そうか。では追放だー！' },
+      { speaker: '勇者', text: 'なんでそうなる！' },
+      { speaker: '王様', text: 'ヤツをとらえろぉ！' },
+      { speaker: '勇者', text: 'に、逃げろぉー！！' }
+    ];
+    let typeCharIndex = 0;
+    let typeTimer = 0;
+
+    // --- サウンド管理 ---
+    let audioCtx = null;
+    let bgmTimer = null;
+    let bgmStep = 0;
+    let currentBgmMode = null;
+
+    function initAudio() {
+      if (!audioCtx) {
+        audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      }
+      if (audioCtx.state === 'suspended') {
+        audioCtx.resume();
+      }
+      audioStarted = true;
+    }
+
+    function playSound(type) {
+      if (!audioCtx) return;
+      try {
+        let osc = audioCtx.createOscillator();
+        let gain = audioCtx.createGain();
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+
+        let now = audioCtx.currentTime;
+
+        if (type === 'jump') {
+          osc.type = 'sine';
+          osc.frequency.setValueAtTime(180, now);
+          osc.frequency.exponentialRampToValueAtTime(500, now + 0.18);
+          gain.gain.setValueAtTime(0.35, now);
+          gain.gain.linearRampToValueAtTime(0.01, now + 0.18);
+          osc.start(now);
+          osc.stop(now + 0.18);
+        } else if (type === 'attack') {
+          osc.type = 'triangle';
+          osc.frequency.setValueAtTime(350, now);
+          osc.frequency.linearRampToValueAtTime(120, now + 0.12);
+          gain.gain.setValueAtTime(0.4, now);
+          gain.gain.linearRampToValueAtTime(0.01, now + 0.12);
+          osc.start(now);
+          osc.stop(now + 0.12);
+        } else if (type === 'hit') {
+          osc.type = 'square';
+          osc.frequency.setValueAtTime(450, now);
+          osc.frequency.exponentialRampToValueAtTime(100, now + 0.1);
+          gain.gain.setValueAtTime(0.5, now);
+          gain.gain.linearRampToValueAtTime(0.01, now + 0.1);
+          osc.start(now);
+          osc.stop(now + 0.1);
+        } else if (type === 'blow') {
+          osc.type = 'sine';
+          osc.frequency.setValueAtTime(280, now);
+          osc.frequency.exponentialRampToValueAtTime(1200, now + 0.35);
+          gain.gain.setValueAtTime(0.3, now);
+          gain.gain.linearRampToValueAtTime(0.01, now + 0.35);
+          osc.start(now);
+          osc.stop(now + 0.35);
+        } else if (type === 'next') {
+          osc.type = 'sine';
+          osc.frequency.setValueAtTime(440, now);
+          osc.frequency.setValueAtTime(880, now + 0.05);
+          gain.gain.setValueAtTime(0.2, now);
+          gain.gain.linearRampToValueAtTime(0.01, now + 0.1);
+          osc.start(now);
+          osc.stop(now + 0.1);
+        } else if (type === 'gameover') {
+          osc.type = 'sawtooth';
+          osc.frequency.setValueAtTime(250, now);
+          osc.frequency.linearRampToValueAtTime(80, now + 0.5);
+          gain.gain.setValueAtTime(0.2, now);
+          gain.gain.linearRampToValueAtTime(0.01, now + 0.5);
+          osc.start(now);
+          osc.stop(now + 0.5);
+        }
+      } catch(e) {}
+    }
+
+    function startBGM(mode) {
+      if (currentBgmMode === mode && bgmTimer) return;
+      stopBGM();
+      currentBgmMode = mode;
+      bgmStep = 0;
+      
+      const titleMelody = [261, 329, 392, 440, 392, 329, 293, 261];
+      const storyMelody = [261, 329, 392, 523, 392, 329, 293, 349];
+      const playMelody = [330, 392, 440, 523, 440, 392, 330, 293, 330, 392, 523, 659];
+      
+      let interval = 220;
+      if (mode === 'TITLE' || mode === 'PROLOGUE') interval = 380;
+      if (mode === 'STORY') interval = 350;
+
+      bgmTimer = setInterval(() => {
+        if (!audioCtx) return;
+        try {
+          let osc = audioCtx.createOscillator();
+          let gain = audioCtx.createGain();
+          osc.connect(gain);
+          gain.connect(audioCtx.destination);
+          let now = audioCtx.currentTime;
+          
+          let melody = playMelody;
+          if (mode === 'TITLE' || mode === 'PROLOGUE') melody = titleMelody;
+          if (mode === 'STORY') melody = storyMelody;
+
+          let freq = melody[bgmStep % melody.length];
+
+          osc.type = (mode === 'TITLE' || mode === 'PROLOGUE') ? 'triangle' : (mode === 'STORY' ? 'sine' : 'triangle');
+          osc.frequency.setValueAtTime(freq, now);
+          gain.gain.setValueAtTime(0.12, now);
+          gain.gain.linearRampToValueAtTime(0.001, now + (interval / 1000) * 0.8);
+          osc.start(now);
+          osc.stop(now + (interval / 1000) * 0.8);
+          bgmStep++;
+        } catch(e) {}
+      }, interval);
+    }
+
+    function stopBGM() {
+      if (bgmTimer) {
+        clearInterval(bgmTimer);
+        bgmTimer = null;
+      }
+      currentBgmMode = null;
+    }
+
+    let gameSpeed = 3.3;
+    let distance = 0;
+
+    let defeatCount = 0;
+    let isSleepingMode = false;
+    let sleepTargetDistance = 0;
+
+    let hero = {
+      x: 70,
+      y: 160,
+      width: 64,
+      height: 72,
+      vy: 0,
+      gravity: 0.65,
+      isGrounded: false,
+      jumpCount: 0,
+      maxJumps: 2,
+      isAttacking: false,
+      attackTimer: 0,
+      stateText: 'めんどくさ…',
+      textTimer: 0,
+      animTimer: 0,
+      runFrame: 0
+    };
+
+    let terrain = [];
+    let enemies = [];
+    let nextSpawnX = 0;
+    let currentHeight = 60;
+
+    function getHighScores() {
+      const saved = localStorage.getItem('lazyHeroHighScores');
+      return saved ? JSON.parse(saved) : [0, 0, 0];
+    }
+
+    function saveHighScore(newScore) {
+      let scores = getHighScores();
+      scores.push(newScore);
+      scores.sort((a, b) => b - a);
+      scores = scores.slice(0, 3);
+      localStorage.setItem('lazyHeroHighScores', JSON.stringify(scores));
+      return scores;
+    }
+
+    function addBlock(x, width, height, isHole = false) {
+      terrain.push({ x, width, height, isHole });
+    }
+
+    function generateTerrain() {
+      while (nextSpawnX < canvas.width + 200) {
+        const rand = Math.random();
+        const lastBlock = terrain[terrain.length - 1];
+
+        if (rand < 0.38 && lastBlock && !lastBlock.isHole) {
+          let holeWidth = 70 + Math.floor(Math.random() * 20);
+          addBlock(nextSpawnX, holeWidth, 0, true);
+          nextSpawnX += holeWidth;
+        } 
+        else {
+          let heightChange = (Math.floor(Math.random() * 3) - 1) * 25;
+          if (lastBlock && lastBlock.isHole && heightChange > 0) {
+            heightChange = 0;
+          }
+
+          currentHeight += heightChange;
+          if (currentHeight < 40) currentHeight = 40;
+          if (currentHeight > 130) currentHeight = 130;
+
+          let blockWidth = 60 + Math.floor(Math.random() * 40);
+          addBlock(nextSpawnX, blockWidth, currentHeight, false);
+
+          if (!lastBlock?.isHole && Math.random() < 0.28 && blockWidth > 65) {
+            enemies.push({
+              x: nextSpawnX + blockWidth / 2 - 32,
+              y: canvas.height - currentHeight - 54,
+              width: 64,
+              height: 64,
+              boxX: 16,
+              boxY: 10,
+              boxW: 32,
+              boxH: 48,
+              alive: true,
+              isKnockedOut: false,
+              vx: 0,
+              vy: 0,
+              rotation: 0,
+              rotSpeed: 0
+            });
+          }
+
+          nextSpawnX += blockWidth;
+        }
+      }
+    }
+
+    function drawHero(hx, hy, isFlipped = false, customWidth = hero.width, customHeight = hero.height) {
+      ctx.save();
+      const drawY = hy;
+      const centerX = hx + customWidth / 2;
+      const centerY = drawY + customHeight / 2;
+
+      if (isFlipped) {
+        ctx.translate(centerX, centerY);
+        ctx.scale(-1, 1);
+        ctx.translate(-centerX, -centerY);
+      }
+
+      if (hero.isAttacking && !isSleepingMode) {
+        ctx.translate(centerX, centerY);
+        ctx.rotate(15 * Math.PI / 180); 
+        ctx.translate(-centerX, -centerY);
+      }
+
+      let currentHeroImg = heroImg;
+      if (isSleepingMode) {
+        currentHeroImg = heroSleepImg;
+      } else if (gameState === 'PLAYING' && !hero.isGrounded && heroJumpImg.complete && heroJumpImg.naturalWidth !== 0) {
+        currentHeroImg = heroJumpImg;
+      } else if (gameState === 'PLAYING' && !hero.isAttacking) {
+        currentHeroImg = (hero.runFrame === 0) ? heroRightImg : heroLeftImg;
+      }
+
+      if (!isSleepingMode && hero.isAttacking && heroAttackImg.complete && heroAttackImg.naturalWidth !== 0) {
+        ctx.drawImage(heroAttackImg, hx, drawY, customWidth, customHeight);
+      } 
+      else if (currentHeroImg.complete && currentHeroImg.naturalWidth !== 0) {
+        ctx.drawImage(currentHeroImg, hx, drawY, customWidth, customHeight);
+      } 
+      else if (heroImg.complete && heroImg.naturalWidth !== 0) {
+        ctx.drawImage(heroImg, hx, drawY, customWidth, customHeight);
+      } else {
+        ctx.fillStyle = '#3f51b5';
+        ctx.fillRect(hx + 12, drawY + 20, 32, 28);
+      }
+
+      ctx.restore();
+    }
+
+    function drawKing(kx, ky, kw = 64, kh = 72) {
+      if (kingImg.complete && kingImg.naturalWidth !== 0) {
+        ctx.drawImage(kingImg, kx, ky, kw, kh);
+      } else {
+        ctx.fillStyle = '#ffd700';
+        ctx.fillRect(kx + 6, ky, 20, 8);
+      }
+    }
+
+    function drawEnemies() {
+      enemies.forEach(enemy => {
+        if (!enemy.alive) return;
+
+        ctx.save();
+        if (enemy.isKnockedOut) {
+          const centerX = enemy.x + enemy.width / 2;
+          const centerY = enemy.y + enemy.height / 2;
+          ctx.translate(centerX, centerY);
+          ctx.rotate(enemy.rotation);
+          ctx.translate(-centerX, -centerY);
+        }
+
+        if (enemyImg.complete && enemyImg.naturalWidth !== 0) {
+          ctx.drawImage(enemyImg, enemy.x, enemy.y, enemy.width, enemy.height);
+        } else {
+          ctx.fillStyle = '#4caf50';
+          ctx.beginPath();
+          ctx.arc(enemy.x + 32, enemy.y + 32, 20, 0, Math.PI * 2);
+          ctx.fill();
+        }
+
+        ctx.restore();
+      });
+    }
+
+    function drawHitEffects() {
+      hitEffects.forEach((fx) => {
+        ctx.save();
+        ctx.strokeStyle = '#fff';
+        ctx.lineWidth = 3;
+        ctx.beginPath();
+        ctx.moveTo(fx.x - 14, fx.y - 14);
+        ctx.lineTo(fx.x + 14, fx.y + 14);
+        ctx.moveTo(fx.x + 14, fx.y - 14);
+        ctx.lineTo(fx.x - 14, fx.y + 14);
+        ctx.stroke();
+
+        ctx.strokeStyle = '#ffeb3b';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.arc(fx.x, fx.y, 16 - fx.timer, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.restore();
+        fx.timer--;
+      });
+      hitEffects = hitEffects.filter(fx => fx.timer > 0);
+    }
+
+    function updateAndDrawDust() {
+      dustParticles.forEach(p => {
+        p.x -= p.vx;
+        p.y += p.vy;
+        p.size += p.growth;
+        p.alpha -= p.fade;
+
+        ctx.save();
+        ctx.globalAlpha = Math.max(0, p.alpha);
+        ctx.fillStyle = p.color;
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
+      });
+      dustParticles = dustParticles.filter(p => p.alpha > 0);
+    }
+
+    function initGame() {
+      hero.x = 70;
+      hero.y = 160;
+      hero.vy = 0;
+      hero.isGrounded = false;
+      hero.jumpCount = 0;
+      hero.isAttacking = false;
+      hero.stateText = 'めんどくさ…';
+      hero.textTimer = 0;
+      hero.runFrame = 0;
+      hero.animTimer = 0;
+      terrain = [];
+      enemies = [];
+      hitEffects = [];
+      dustParticles = [];
+      distance = 0;
+      gameSpeed = 3.3;
+      currentHeight = 60;
+      nextSpawnX = 0;
+      bgX = 0;
+      defeatCount = 0;
+      isSleepingMode = false;
+      sleepFloatTimer = 0;
+
+      addBlock(0, 250, 60, false);
+      nextSpawnX = 250;
+      
+      startBGM('PLAYING');
+      gameLoop();
+    }
+
+    function handleJump(e) {
+      if (e) e.preventDefault();
+      if (gameState !== 'PLAYING' || isSleepingMode) return;
+      initAudio();
+      if (hero.jumpCount < hero.maxJumps) {
+        hero.vy = -11.5;
+        hero.jumpCount++;
+        hero.isGrounded = false;
+
+        /* ジャンプ瞬間の砂煙 */
+        for (let i = 0; i < 4; i++) {
+          dustParticles.push({
+            x: hero.x + 20 + Math.random() * 20,
+            y: hero.y + hero.height + 4,
+            size: 3 + Math.random() * 3,
+            vx: gameSpeed * 0.8 + Math.random() * 2,
+            vy: -0.8 - Math.random() * 1.5,
+            growth: 0.2,
+            alpha: 0.7,
+            fade: 0.05,
+            color: '#e0d8c0'
+          });
+        }
+
+        playSound('jump');
+        hero.stateText = hero.jumpCount === 2 ? 'わーい' : 'よいっしょ…';
+        hero.textTimer = 36;
+      }
+    }
+
+    function handleAdvanceOrAttack(e) {
+      if (e) e.preventDefault();
+      initAudio();
+
+      if (gameState === 'TITLE') {
+        if (!currentBgmMode) {
+          startBGM('TITLE');
+        } else {
+          gameState = 'PROLOGUE';
+          prologueIndex = 0;
+          prologueAlpha = 0;
+          startBGM('PROLOGUE');
+          animateStaticScreens();
+        }
+      } else if (gameState === 'PROLOGUE') {
+        prologueIndex++;
+        prologueAlpha = 0;
+        playSound('next');
+        if (prologueIndex >= prologueLines.length) {
+          gameState = 'STORY';
+          storyIndex = 0;
+          typeCharIndex = 0;
+          startBGM('STORY');
+        }
+      } else if (gameState === 'STORY') {
+        const fullText = storyLines[storyIndex].text;
+        if (typeCharIndex < fullText.length) {
+          typeCharIndex = fullText.length;
+        } else {
+          storyIndex++;
+          typeCharIndex = 0;
+          playSound('next');
+          if (storyIndex >= storyLines.length) {
+            gameState = 'PLAYING';
+            initGame();
+          }
+        }
+      } else if (gameState === 'GAMEOVER') {
+        gameState = 'PLAYING';
+        initGame();
+      } else if (gameState === 'PLAYING') {
+        if (isSleepingMode) return;
+        hero.isAttacking = true;
+        hero.attackTimer = 12; 
+        playSound('attack');
+        hero.stateText = 'めんどくせぇ！';
+        hero.textTimer = 36;
+      }
+    }
+
+    const jumpBtn = document.getElementById('jumpBtn');
+    const attackBtn = document.getElementById('attackBtn');
+
+    if (jumpBtn) jumpBtn.addEventListener('pointerdown', handleJump);
+    if (attackBtn) attackBtn.addEventListener('pointerdown', handleAdvanceOrAttack);
+    canvas.addEventListener('click', handleAdvanceOrAttack);
+
+    let currentHighScores = [0, 0, 0];
+
+    function gameLoop() {
+      if (gameState !== 'PLAYING') return;
+
+      distance += Math.floor(gameSpeed / 2) * (isSleepingMode ? 3 : 1);
+      gameSpeed += 0.0006;
+
+      if (isSleepingMode) {
+        hero.vy = 0;
+        hero.isGrounded = false;
+        sleepFloatTimer += 0.08;
+        hero.y = 120 + Math.sin(sleepFloatTimer) * 12;
+        hero.isAttacking = false;
+
+        if (distance >= sleepTargetDistance) {
+          isSleepingMode = false;
+          hero.stateText = 'ふぁあ…起きたか';
+          hero.textTimer = 50;
+        }
+      } else {
+        hero.vy += hero.gravity;
+        hero.y += hero.vy;
+
+        if (hero.isAttacking) {
+          hero.attackTimer--;
+          if (hero.attackTimer <= 0) {
+            hero.isAttacking = false;
+          }
+        }
+      }
+
+      if (hero.textTimer > 0) {
+        hero.textTimer--;
+        if (hero.textTimer <= 0 && !isSleepingMode) {
+          hero.stateText = 'めんどくさ…';
+        }
+      }
+
+      hero.animTimer++;
+      if (hero.animTimer % 8 === 0) {
+        hero.runFrame = hero.runFrame === 0 ? 1 : 0;
+      }
+
+      generateTerrain();
+
+      let pushedByWall = false;
+      let moveSpeed = gameSpeed * (isSleepingMode ? 2.5 : 1.0);
+      let onGroundThisFrame = false;
+
+      terrain.forEach(block => {
+        block.x -= moveSpeed;
+
+        if (!block.isHole && !isSleepingMode) {
+          let blockTopY = canvas.height - block.height;
+
+          if (hero.x + hero.width - 22 > block.x && hero.x + 22 < block.x + block.width) {
+            if (hero.y + hero.height >= blockTopY && hero.y + hero.height <= blockTopY + 25 && hero.vy >= 0) {
+              hero.y = blockTopY - hero.height; 
+              hero.vy = 0;
+              hero.jumpCount = 0;
+              onGroundThisFrame = true;
+            }
+          }
+
+          if (hero.y + hero.height > blockTopY + 12) {
+            if (hero.x + hero.width > block.x && hero.x < block.x + 10) {
+              pushedByWall = true;
+            }
+          }
+        }
+      });
+
+      hero.isGrounded = onGroundThisFrame;
+
+      if (hero.isGrounded && !isSleepingMode && hero.animTimer % 5 === 0) {
+        dustParticles.push({
+          x: hero.x + 16,
+          y: hero.y + hero.height + 4,
+          size: 2.5 + Math.random() * 2.5,
+          vx: gameSpeed * 0.9 + Math.random() * 1.5,
+          vy: -0.4 - Math.random() * 0.8,
+          growth: 0.15,
+          alpha: 0.6,
+          fade: 0.04,
+          color: '#e8e0d0'
+        });
+      }
+
+      enemies.forEach(enemy => {
+        if (enemy.isKnockedOut) {
+          enemy.x += enemy.vx;
+          enemy.y += enemy.vy;
+          enemy.vy += 0.35;
+          enemy.rotation += enemy.rotSpeed;
+          return;
+        }
+
+        enemy.x -= moveSpeed;
+
+        if (enemy.alive) {
+          const eBoxX = enemy.x + enemy.boxX;
+          const eBoxY = enemy.y + enemy.boxY;
+          const eBoxW = enemy.boxW;
+          const eBoxH = enemy.boxH;
+
+          if (isSleepingMode) {
+            if (enemy.x + enemy.width > hero.x && enemy.x < hero.x + hero.width) {
+              enemy.isKnockedOut = true;
+              enemy.vx = 10;
+              enemy.vy = -12;
+              enemy.rotSpeed = 0.3;
+              playSound('blow');
+            }
+          } else {
+            if (hero.isAttacking && hero.attackTimer >= 10) {
+              let swordX = hero.x + hero.width - 15; 
+              let swordWidth = 22; 
+              
+              if (swordX + swordWidth > eBoxX && swordX < eBoxX + eBoxW &&
+                  hero.y + 15 < eBoxY + eBoxH && hero.y + hero.height - 10 > eBoxY) {
+                
+                enemy.isKnockedOut = true;
+                enemy.vx = 9;
+                enemy.vy = -11;
+                enemy.rotSpeed = 0.25;
+
+                hitEffects.push({ x: eBoxX + eBoxW / 2, y: eBoxY + eBoxH / 2, timer: 10 });
+                playSound('hit');
+                playSound('blow');
+                
+                defeatCount++;
+                if (defeatCount >= 10) {
+                  isSleepingMode = true;
+                  defeatCount = 0;
+                  sleepTargetDistance = distance + 1000;
+                  hero.stateText = '';
+                } else {
+                  hero.stateText = '倒した…ふぅ';
+                  hero.textTimer = 40;
+                }
+              }
+            }
+
+            if (hero.x + hero.width - 18 > eBoxX && hero.x + 18 < eBoxX + eBoxW &&
+                hero.y + hero.height > eBoxY + 5 && hero.y < eBoxY + eBoxH) {
+              pushedByWall = true;
+              hero.x = eBoxX - hero.width + 18;
+            }
+          }
+        }
+      });
+
+      if (!isSleepingMode) {
+        if (pushedByWall) {
+          hero.x -= gameSpeed * 1.2;
+        } else {
+          if (hero.x < 70) hero.x += 1;
+        }
+      }
+
+      if (terrain.length > 0 && terrain[0].x + terrain[0].width < -50) terrain.shift();
+
+      enemies = enemies.filter(e => {
+        if (e.x < -100) return false;
+        if (e.isKnockedOut && (e.x > canvas.width + 200 || e.y > canvas.height + 200)) return false;
+        return true;
+      });
+
+      nextSpawnX -= moveSpeed;
+
+      if (!isSleepingMode && (hero.y > canvas.height + 20 || hero.x + hero.width < 0)) {
+        gameState = 'GAMEOVER';
+        stopBGM();
+        playSound('gameover');
+        currentHighScores = saveHighScore(distance);
+      }
+
+      // --- 描画 ---
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+      if (bgImg.complete && bgImg.naturalWidth !== 0) {
+        const bgScaledWidth = canvas.height * (bgImg.naturalWidth / bgImg.naturalHeight);
+        bgX -= gameSpeed * (isSleepingMode ? 1.5 : 0.3);
+        if (bgX <= -bgScaledWidth) {
+          bgX += bgScaledWidth;
+        }
+
+        for (let x = bgX; x < canvas.width; x += bgScaledWidth) {
+          ctx.drawImage(bgImg, x, 0, bgScaledWidth, canvas.height);
+        }
+      } else {
+        ctx.fillStyle = '#1a103c';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+      }
+
+      terrain.forEach(block => {
+        if (!block.isHole) {
+          let blockTopY = canvas.height - block.height;
+          ctx.fillStyle = '#5d4037';
+          ctx.fillRect(block.x, blockTopY, block.width, block.height);
+          ctx.fillStyle = '#4caf50';
+          ctx.fillRect(block.x, blockTopY, block.width, 8);
+        }
+      });
+
+      drawEnemies();
+      updateAndDrawDust();
+
+      if (isSleepingMode) {
+        ctx.fillStyle = 'rgba(10, 10, 25, 0.75)';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+      }
+
+      drawHero(hero.x, hero.y + (isSleepingMode ? 0 : 16), false);
+      drawHitEffects();
+
+      if (!isSleepingMode && hero.stateText) {
+        ctx.fillStyle = '#fff';
+        ctx.font = 'bold 13px sans-serif';
+        ctx.fillText(hero.stateText, hero.x, hero.y + 8);
+      }
+
+      ctx.fillStyle = '#fff';
+      ctx.font = 'bold 16px sans-serif';
+      ctx.fillText(`進んだ距離: ${distance} m`, 15, 30);
+
+      if (isSleepingMode) {
+        ctx.save();
+        
+        ctx.textAlign = 'center';
+        ctx.fillStyle = '#ffeb3b';
+        ctx.font = 'bold 22px sans-serif';
+        ctx.fillText('⚡ 高速移動中 ⚡', canvas.width / 2, 70);
+
+        const rainbowX = hero.x + hero.width + 15;
+        const rainbowY = hero.y + 40;
+
+        let grad = ctx.createLinearGradient(rainbowX, 0, rainbowX + 180, 0);
+        let hue = (Date.now() / 10) % 360;
+        grad.addColorStop(0, `hsl(${hue}, 100%, 65%)`);
+        grad.addColorStop(0.5, `hsl(${(hue + 120) % 360}, 100%, 65%)`);
+        grad.addColorStop(1, `hsl(${(hue + 240) % 360}, 100%, 65%)`);
+
+        ctx.textAlign = 'left';
+        ctx.fillStyle = grad;
+        ctx.font = 'bold 19px sans-serif';
+        ctx.shadowColor = '#000';
+        ctx.shadowBlur = 6;
+        ctx.fillText('明日から本気だす', rainbowX, rainbowY);
+
+        ctx.restore();
+      }
+
+      if (gameState === 'GAMEOVER') {
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.85)';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        
+        ctx.fillStyle = '#ff4081';
+        ctx.font = 'bold 20px sans-serif';
+        ctx.fillText('谷底へ落っこちた…', 90, 110);
+        
+        ctx.fillStyle = '#fff';
+        ctx.font = 'bold 16px sans-serif';
+        ctx.fillText(`今回の記録: ${distance} m`, 110, 145);
+
+        ctx.fillStyle = '#ffd700';
+        ctx.font = 'bold 15px sans-serif';
+        ctx.fillText('― HIGH SCORE TOP 3 ―', 85, 190);
+
+        ctx.fillStyle = '#fff';
+        ctx.font = '14px sans-serif';
+        const medals = ['1st 🥇', '2nd 🥈', '3rd 🥉'];
+        currentHighScores.forEach((score, idx) => {
+          ctx.fillText(`${medals[idx]} :  ${score} m`, 115, 222 + (idx * 24));
+        });
+
+        ctx.fillStyle = '#a0d8ef';
+        ctx.font = '13px sans-serif';
+        ctx.fillText('Aボタンでリトライ', 115, 330);
+        return;
+      }
+
+      requestAnimationFrame(gameLoop);
+    }
+
+    function animateStaticScreens() {
+      if (gameState === 'PLAYING' || gameState === 'GAMEOVER') return;
+
+      titleAnimTimer++;
+      drawStaticScreens();
+      requestAnimationFrame(animateStaticScreens);
+    }
+
+    function drawStaticScreens() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+      if (gameState === 'TITLE') {
+        if (titleImg.complete && titleImg.naturalWidth !== 0) {
+          ctx.drawImage(titleImg, 0, 0, canvas.width, canvas.height);
+        } else {
+          let grad = ctx.createLinearGradient(0, 0, 0, canvas.height);
+          grad.addColorStop(0, '#111119');
+          grad.addColorStop(1, '#2c2c44');
+          ctx.fillStyle = grad;
+          ctx.fillRect(0, 0, canvas.width, canvas.height);
+        }
+
+        let alpha = 0.5 + 0.5 * Math.sin(titleAnimTimer * 0.08);
+        ctx.save();
+        ctx.globalAlpha = alpha;
+        ctx.fillStyle = '#ffeb3b';
+        ctx.font = 'bold 15px sans-serif';
+        ctx.textAlign = 'center';
+        
+        if (!currentBgmMode) {
+          ctx.fillText('▼ Aボタンを押してSOUND ON ▼', canvas.width / 2, 330);
+        } else {
+          ctx.fillText('▼ Aボタンを押してスタート ▼', canvas.width / 2, 330);
+        }
+        ctx.restore();
+
+      } else if (gameState === 'PROLOGUE') {
+        ctx.fillStyle = '#0b0b12';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+        if (prologueAlpha < 1) prologueAlpha += 0.035;
+
+        ctx.save();
+        ctx.globalAlpha = Math.min(1, prologueAlpha);
+        ctx.fillStyle = '#fff';
+        ctx.font = '15px sans-serif';
+        ctx.textAlign = 'center';
+        
+        const currentText = prologueLines[prologueIndex];
+        ctx.fillText(currentText, canvas.width / 2, 200);
+
+        ctx.globalAlpha = 0.6;
+        ctx.fillStyle = '#ffeb3b';
+        ctx.font = '12px sans-serif';
+        ctx.fillText('▶ Aボタンで進む', canvas.width / 2, 340);
+        ctx.restore();
+
+      } else if (gameState === 'STORY') {
+        if (castleBgImg.complete && castleBgImg.naturalWidth !== 0) {
+          const aspect = castleBgImg.naturalWidth / castleBgImg.naturalHeight;
+          const bgH = 260;
+          const bgW = bgH * aspect;
+          const bgX = (canvas.width - bgW) / 2;
+          ctx.drawImage(castleBgImg, bgX, 0, bgW, bgH);
+        } else {
+          ctx.fillStyle = '#1a1024';
+          ctx.fillRect(0, 0, canvas.width, 260);
+        }
+
+        const currentLine = storyLines[storyIndex];
+        const isKing = currentLine.speaker === '王様';
+
+        drawKing(75, 130, 68, 76);
+        drawHero(230, 155, true, 64, 72);
+
+        const boxY = 272;
+        const boxH = 112;
+
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.9)';
+        ctx.fillRect(15, boxY, canvas.width - 30, boxH);
+        ctx.strokeStyle = '#ffd700';
+        ctx.lineWidth = 2;
+        ctx.strokeRect(15, boxY, canvas.width - 30, boxH);
+
+        ctx.fillStyle = isKing ? '#ffd700' : '#82b1ff';
+        ctx.font = 'bold 15px sans-serif';
+        ctx.textAlign = 'left';
+        ctx.fillText(`【 ${currentLine.speaker} 】`, 30, boxY + 26);
+
+        typeTimer++;
+        if (typeTimer % 2 === 0 && typeCharIndex < currentLine.text.length) {
+          typeCharIndex++;
+        }
+
+        ctx.fillStyle = '#fff';
+        ctx.font = '14px sans-serif';
+        const visibleText = currentLine.text.substring(0, typeCharIndex);
+        const lines = visibleText.split('\n');
+        lines.forEach((l, idx) => {
+          ctx.fillText(l, 30, boxY + 54 + (idx * 22));
+        });
+
+        if (typeCharIndex >= currentLine.text.length) {
+          ctx.fillStyle = '#ffeb3b';
+          ctx.font = '12px sans-serif';
+          ctx.fillText('▶ Aボタンで進む', 230, boxY + 98);
+        }
+      }
+    }
+
+    titleImg.onload = () => {
+      if (gameState === 'TITLE') drawStaticScreens();
+    };
+
+    castleBgImg.onload = () => {
+      if (gameState === 'STORY') drawStaticScreens();
+    };
+
+    drawStaticScreens();
+    animateStaticScreens();
+  </script>
+</body>
+</html>
