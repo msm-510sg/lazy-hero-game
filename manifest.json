@@ -8,9 +8,21 @@
   "short_name": "走らされた勇者",
   "start_url": "/",
   "theme_color": "#000000",
-  "description": "​勝手に走り出す勇者を操作して進む、爽快オートスクロール・ランゲーム！",
+  "description": "勝手に走り出す勇者を操作して進む",
   "lang": "ja",
   "categories": [
     "games"
+  ],
+  "icons": [
+    {
+      "src": "icon-512.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
   ]
 }
