@@ -1,0 +1,16 @@
+{
+  "background_color": "#000000",
+  "dir": "ltr",
+  "display": "standalone",
+  "name": "走らされた勇者",
+  "orientation": "portrait",
+  "scope": "/",
+  "short_name": "走らされた勇者",
+  "start_url": "/",
+  "theme_color": "#000000",
+  "description": "​勝手に走り出す勇者を操作して進む、爽快オートスクロール・ランゲーム！",
+  "lang": "ja",
+  "categories": [
+    "games"
+  ]
+}
