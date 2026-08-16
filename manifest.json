@@ -1,27 +1,26 @@
 {
-  "background_color": "#000000",
-  "dir": "ltr",
-  「ディスプレイ」:「スタンドアロン」
   "name": "走らされた勇者",
-  「向き」: 「縦向き」
-  "scope": "/lazy-hero-game/",
   "short_name": "走らされた勇者",
   "start_url": "/lazy-hero-game/",
+  "scope": "/lazy-hero-game/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#000000",
   "theme_color": "#000000",
-  "description": "勝手に走り出す勇者を操作して進む",
+  "description": "勝手に走り出す勇者のゲーム",
   "lang": "ja",
-  「カテゴリ」: [
-    「ゲーム」
+  "categories": [
+    "games"
   ],
-  「アイコン」: [
+  "icons": [
     {
       "src": "launchericon-192x192.png",
-      「サイズ」: 「192x192」
+      "sizes": "192x192",
       "type": "image/png"
     },
     {
       "src": "launchericon-512x512.png",
-      「サイズ」: 「512x512」
+      "sizes": "512x512",
       "type": "image/png"
     }
   ]
