@@ -15,12 +15,12 @@
   ],
   「アイコン」: [
     {
-      "src": "192.png",
+      "src": "launchericon-192x192.png",
       「サイズ」: 「192x192」
       "type": "image/png"
     },
     {
-      "src": "512.png",
+      "src": "launchericon-512x512.png",
       「サイズ」: 「512x512」
       "type": "image/png"
     }
